@@ -33,11 +33,14 @@ markets=None
 shipyards=None
 jumpgate=None
 
+
+
 def list_systems(token:str,maxPages:int = 1):
     global systems
     if systems is None or len(systems)/20<maxPages:
         if systems is None:
             systems=[]
+        #lets assume that no system will be inserted in the middle of the list
         for i in range(len(systems)//20+1,maxPages+1):
             print(f'Loading systems page {i}/{maxPages}')
             systems+=json.loads(_list_systems(token,page=i).content)["data"]
@@ -123,3 +126,38 @@ def list_shipyards(token:str):
         for waypointSymbol in [waypoint["symbol"] for waypoint in find_waypoints_with_trait(token,systemSymbol,"shipyard")]:
             get_shipyard(token,systemSymbol,waypointSymbol) #lazy updating
     return shipyards
+
+def save_all_systems(token:str):
+    metadata=json.loads(_list_systems(token,1).content)["meta"]
+    list_systems(token,metadata["total"]//metadata["limit"])
+    f=open("./systemcache/systems.json","w")
+    f.write(json.dumps(systems))
+    f.close()
+
+
+def load_all_systems():
+    global systems
+    f=open("./systemcache/systems.json","r")
+    systems=json.loads(f.read())
+    f.close()
+
+
+def save_all_waypoints(token:str):
+
+    totalSystems=json.loads(_list_systems(token,1).content)["meta"]["total"]
+    if totalSystems > len(systems):
+        save_all_systems(token)
+    for i,system in enumerate(list_systems(token)):
+        print(f'Checking waypoints in {system["symbol"]}({i+1}/{totalSystems})')
+        if len(system["waypoints"])==0:
+            print("No waypoints in this system, continuing")
+            continue
+        if "traits" not in system["waypoints"][0].keys():
+            print("No waypoints stored, querying API")
+            list_waypoints(token,system["symbol"])
+            print("saving")
+            f=open("./systemcache/systems.json","w")
+            f.write(json.dumps(systems))
+            f.close()
+        else:
+            print("System up to date, continuing")
