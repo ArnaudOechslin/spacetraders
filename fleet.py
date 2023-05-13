@@ -1,4 +1,6 @@
 import api_request
+import time
+import json
 
 def list_ships(token:str,limit:int = 20, page:int = 1):
     limit=max(min(limit, 20), 1)
@@ -32,8 +34,11 @@ def dock_ship(token:str,shipSymbol:str):
 def create_survey(token:str,shipSymbol:str):
      return api_request.fetch_api(["my","ships",shipSymbol,"survey"],token=token)
 
-def extract_ressources(token:str,shipSymbol:str):
-     return api_request.fetch_api(["my","ships",shipSymbol,"extract"],token=token)
+def extract_ressources(token:str,shipSymbol:str, survey:str = None):
+     if survey is not None:
+          return api_request.fetch_api(["my","ships",shipSymbol,"extract"],token=token,data=survey)
+     else:
+          return api_request.fetch_api(["my","ships",shipSymbol,"extract"],token=token)
 
 def jettison_cargo(token:str,shipSymbol:str,cargoSymbol:str,units:int = 1):
      units=max(1,units)
@@ -72,3 +77,25 @@ def purchase_cargo(token:str,shipSymbol:str,cargoSymbol:str,units:int = 1):
 
 def transfer_cargo(token:str,shipSymbol:str,targetShipSymbol:str,cargoSymbol:str,units:int = 1):
      return api_request.fetch_api(["my","ships",shipSymbol,"transfer"],token=token,data={"symbol":cargoSymbol,"units":units,"tradeSymbol":targetShipSymbol})
+
+
+def survey_specific_ressource(token:str,shipSymbol:str,ressource:str,attempts:int = 5):
+     survey=None
+     attemps=max(1,min(20,attempts))-1
+     response=create_survey(token,shipSymbol)
+     while ressource not in str(response.content) and attempts>0:
+          attemps-=1
+          print(f'No {ressource} found, waiting for the next survey')
+          if response.status_code<300:
+               timeToSleep=json.loads(response.content)["data"]["cooldown"]["remainingSeconds"]
+          else:
+               timeToSleep=json.loads(response.content)["error"]["data"]["cooldown"]["remainingSeconds"]
+          for i in range(timeToSleep):
+               if (timeToSleep-i)%5==0:
+                    print(f'{timeToSleep-i} seconds left until next survey')
+               time.sleep(1)
+                    
+          response=create_survey(token,shipSymbol)
+     if ressource in str(response.content):
+          survey=json.loads(response.content)["data"]
+     return survey
