@@ -85,7 +85,7 @@ def survey_specific_ressource(token:str,shipSymbol:str,ressource:str,attempts:in
      response=create_survey(token,shipSymbol)
      while ressource not in str(response.content) and attempts>0:
           attemps-=1
-          print(f'No {ressource} found, waiting for the next survey')
+          print(f'No {ressource} found in <{response.content}>, waiting for the next survey')
           if response.status_code<300:
                timeToSleep=json.loads(response.content)["data"]["cooldown"]["remainingSeconds"]
           else:

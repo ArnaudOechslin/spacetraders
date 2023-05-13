@@ -18,10 +18,16 @@ def main() -> int:
     shipSymbol=ship["symbol"]
     systemSymbol=ship["nav"]["systemSymbol"]
     cargo=fleet.get_ship_cargo(token,shipSymbol)
-    response=fleet.create_survey(token,shipSymbol)
-    print(response.content)
-    
-
+    survey=fleet.survey_specific_ressource(token,shipSymbol,"ALUMINUM_ORE",20)
+    if survey is not None:
+        timeToSleep=survey["cooldown"]["remainingSeconds"]
+        print("Waiting for cooldown")
+        time.sleep(timeToSleep)
+        response=fleet.extract_ressources(token,shipSymbol,survey)
+        print(response.content)
+    else:
+        response=fleet.extract_ressources(token,shipSymbol)
+        print(response.content)
     return 0
 
 if __name__ == '__main__':
