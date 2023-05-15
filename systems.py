@@ -90,7 +90,9 @@ def get_market(token:str,systemSymbol:str,waypointSymbol:str):
     if markets is None or key not in markets.keys():
         if markets is None:
             markets={}
-        markets[key]=json.loads(_get_market(token,systemSymbol,waypointSymbol).content)["data"] 
+        market=json.loads(_get_market(token,systemSymbol,waypointSymbol).content)
+        if "data" in market.keys():
+            markets[key]=market["data"]
     return markets[key]
     
 def get_shipyard(token:str,systemSymbol:str,waypointSymbol:str):
@@ -99,8 +101,10 @@ def get_shipyard(token:str,systemSymbol:str,waypointSymbol:str):
     if shipyards is None or key not in shipyards.keys():
         if shipyards is None:
             shipyards={}
-        shipyards[key]=json.loads(_get_shipyard(token,systemSymbol,waypointSymbol).content)["data"] 
-    return shipyards[key]
+        shipyard=json.loads(_get_shipyard(token,systemSymbol,waypointSymbol).content)
+        if "data" in shipyard.keys():
+            shipyards[key]=shipyard["data"]
+    return shipyards.get(key)
 
 def get_jumpgate(token:str,systemSymbol:str,waypointSymbol:str):
     global jumpgates
@@ -108,17 +112,26 @@ def get_jumpgate(token:str,systemSymbol:str,waypointSymbol:str):
     if jumpgates is None or key not in jumpgates.keys():
         if jumpgates is None:
             jumpgates={}
-        jumpgates[key]=json.loads(_get_jumpgate(token,systemSymbol,waypointSymbol).content)["data"] 
+        jumpgate=json.loads(jumpgate(token,systemSymbol,waypointSymbol).content)
+        if "data" in jumpgate.keys():
+            jumpgates[key]=jumpgate["data"]
     return jumpgates[key]
 
 def find_waypoints_with_trait(token:str,systemSymbol:str,traitName:str):
     waypoints=[]
-    
     for waypoint in list_waypoints(token,systemSymbol):
         for trait in waypoint["traits"]:
             if trait["symbol"].lower()==traitName.lower():
                 waypoints+=[waypoint]
                 break
+    return waypoints
+
+def find_waypoints_with_type(token:str,systemSymbol:str,typeName:str):
+    waypoints=[]
+    for waypoint in list_waypoints(token,systemSymbol):
+        if waypoint["type"].lower()==typeName.lower():
+            waypoints+=[waypoint]
+            break
     return waypoints
 
 def list_shipyards(token:str):
@@ -161,3 +174,42 @@ def save_all_waypoints(token:str):
             f.close()
         else:
             print("System up to date, continuing")
+
+def find_all_systems_within_range(token:str,systemSymbol:str,range:int = 5000):
+    systemSymbolList=[]
+    startSystem=get_system(token,systemSymbol)
+    x0,y0=startSystem["x"],startSystem["y"]
+
+    for system in list_systems(token):
+        if system["symbol"]==systemSymbol:
+            continue
+        if "JUMP_GATE" not in str(system):
+            continue
+        x,y=system["x"],system["y"]
+        if (x-x0)**2+(y-y0)**2<=range**2:
+            systemSymbolList+=[system["symbol"]]
+    return systemSymbolList
+
+def find_jump_route(token:str,startSymbol:str,destinationSymbol:str):
+    surveyedSystems=[startSymbol]
+    surveyedFrom={}
+    systemsToSurvey=[startSymbol]
+    for system in systemsToSurvey:
+        reachableSystems=find_all_systems_within_range(token,system)
+        for reachableSystem in reachableSystems:
+            if reachableSystem not in surveyedSystems:
+                systemsToSurvey.append(reachableSystem)
+                surveyedFrom[reachableSystem]=system
+                surveyedSystems.append(reachableSystem)
+        if destinationSymbol in surveyedSystems:
+            break
+
+    if destinationSymbol not in surveyedSystems:
+        return None
+    chain=[destinationSymbol]
+    currentSystem=destinationSymbol
+    while currentSystem!=startSymbol:
+        chain=[surveyedFrom[currentSystem]]+chain
+        currentSystem=surveyedFrom[currentSystem]
+    return chain
+

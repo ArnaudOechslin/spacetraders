@@ -1,6 +1,8 @@
 import api_request
 import time
+import datetime
 import json
+import contracts
 
 def list_ships(token:str,limit:int = 20, page:int = 1):
     limit=max(min(limit, 20), 1)
@@ -86,16 +88,63 @@ def survey_specific_ressource(token:str,shipSymbol:str,ressource:str,attempts:in
      while ressource not in str(response.content) and attempts>0:
           attemps-=1
           print(f'No {ressource} found in <{response.content}>, waiting for the next survey')
-          if response.status_code<300:
-               timeToSleep=json.loads(response.content)["data"]["cooldown"]["remainingSeconds"]
-          else:
-               timeToSleep=json.loads(response.content)["error"]["data"]["cooldown"]["remainingSeconds"]
-          for i in range(timeToSleep):
-               if (timeToSleep-i)%5==0:
-                    print(f'{timeToSleep-i} seconds left until next survey')
-               time.sleep(1)
-                    
+          wait_for_cooldown(response)  
           response=create_survey(token,shipSymbol)
      if ressource in str(response.content):
           survey=json.loads(response.content)["data"]
      return survey
+
+def wait_for_cooldown(token:str,shipSymbol:str):
+    response=get_ship_cooldown(token,shipSymbol)
+    if response.status_code==204:
+        print("No cooldown")
+        return None
+    if response.status_code!=200:
+         print("Error")
+         return None
+    timeToSleep=json.loads(response.content)["data"]["remainingSeconds"]
+    for i in range(timeToSleep):
+        #if (timeToSleep-i)%5==0:
+            #print(f'{timeToSleep-i} seconds left on cooldown')
+        time.sleep(1)
+
+def cargo_left(token:str,shipSymbol:str):
+     response=get_ship_cargo(token,shipSymbol)
+     return json.loads(response.content)["data"]["capacity"]-json.loads(response.content)["data"]["units"]
+
+def get_inventory(token:str,shipSymbol:str):
+    shipInfo=json.loads(get_ship(token,shipSymbol).content)["data"]
+    return shipInfo["cargo"]["inventory"]
+
+def sell_everything(token:str,shipSymbol:str,keep = ["ANTIMATTER"]):
+    inventory = get_inventory(token,shipSymbol)
+    for item in inventory:
+        if item["symbol"] not in keep:
+          response=sell_cargo(token,shipSymbol, item["symbol"],item["units"])
+          if response.status_code==201:
+               totalPrice=json.loads(response.content)["data"]["transaction"]["totalPrice"]
+               print(f'{shipSymbol} sold {item["units"]} {item["symbol"]} for {totalPrice}')
+
+def deliver_all(token:str,contractId:str,shipSymbol:str,items):
+    inventory = get_inventory(token,shipSymbol)
+    for item in inventory:
+        if item["symbol"] in items:
+            print(f'{shipSymbol} delivering {item["symbol"]}')
+            contracts.deliver_contract(token,contractId,shipSymbol,item["symbol"],item["units"])
+
+def dump_all_cargo(token:str,shipSymbol:str,keep = ["ANTIMATTER"]):
+    inventory = get_inventory(token,shipSymbol)
+    for item in inventory:
+        if item["symbol"] not in keep:
+            print(f'{shipSymbol} dumping {item["symbol"]}')
+            jettison_cargo(token,shipSymbol,item["symbol"],item["units"])
+
+def wait_for_ship_arrival(token:str,shipSymbol:str):
+    response=get_ship_nav(token,shipSymbol)
+    arrivalTime=datetime.datetime.fromisoformat(json.loads(response.content)["data"]["route"]["arrival"])
+    timeToSleep=int(arrivalTime.timestamp()-time.time())
+    if timeToSleep>0:
+        for i in range(timeToSleep):
+            #if (timeToSleep-i)%5==0:
+               #print(f'{timeToSleep-i} seconds left until arrival')
+            time.sleep(1)

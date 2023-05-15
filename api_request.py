@@ -20,8 +20,6 @@ def fetch_api(url:list[str], data:str = None, token:str = None, request:str = No
         response=requests.get(url=baseUrl+"/".join(url),params=data,headers=headers)
     else:
         response=requests.post(url=baseUrl+"/".join(url),json=data,headers=headers)
-    if response.status_code>=299:
-        print(response.content)
     last_update=time.time()
     return response
 
